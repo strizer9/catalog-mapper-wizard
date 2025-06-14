@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Box,
@@ -10,7 +11,6 @@ import {
   DialogContent,
   DialogActions,
   DialogContentText,
-  Input,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -24,6 +24,7 @@ import {
   useMaterialReactTable,
 } from 'material-react-table';
 import { useCustomToast } from '../hooks/useCustomToast';
+import EditProductDialog from './EditProductDialog';
 
 interface ProductTypeDto {
   id?: string;
@@ -47,9 +48,8 @@ interface ProductDataGridProps {
 
 interface ConfirmationDialogState {
   open: boolean;
-  type: 'delete' | 'update' | null;
+  type: 'delete' | null;
   itemId: string | null;
-  itemData?: ProductTypeDto;
 }
 
 const ProductDataGrid: React.FC<ProductDataGridProps> = ({
@@ -63,15 +63,28 @@ const ProductDataGrid: React.FC<ProductDataGridProps> = ({
     type: null,
     itemId: null,
   });
+  const [editDialog, setEditDialog] = useState<{
+    open: boolean;
+    product: ProductTypeDto | null;
+  }>({
+    open: false,
+    product: null,
+  });
   const { showSuccess, showError, ToastComponent } = useCustomToast();
 
   const handleEdit = (row: MRT_Row<ProductTypeDto>) => {
-    setConfirmDialog({
+    setEditDialog({
       open: true,
-      type: 'update',
-      itemId: row.original.id || '',
-      itemData: row.original,
+      product: row.original,
     });
+  };
+
+  const handleEditSave = (updatedProduct: ProductTypeDto) => {
+    if (updatedProduct.id) {
+      onUpdate(updatedProduct.id, updatedProduct);
+      showSuccess('Product updated successfully');
+    }
+    setEditDialog({ open: false, product: null });
   };
 
   const handleDelete = (row: MRT_Row<ProductTypeDto>) => {
@@ -82,17 +95,11 @@ const ProductDataGrid: React.FC<ProductDataGridProps> = ({
     });
   };
 
-  const handleConfirm = () => {
-    if (!confirmDialog.itemId) return;
-
-    if (confirmDialog.type === 'delete') {
+  const handleConfirmDelete = () => {
+    if (confirmDialog.itemId) {
       onDelete(confirmDialog.itemId);
       showSuccess('Product deleted successfully');
-    } else if (confirmDialog.type === 'update' && confirmDialog.itemData) {
-      onUpdate(confirmDialog.itemId, confirmDialog.itemData);
-      showSuccess('Product updated successfully');
     }
-
     setConfirmDialog({ open: false, type: null, itemId: null });
   };
 
@@ -216,27 +223,32 @@ const ProductDataGrid: React.FC<ProductDataGridProps> = ({
       </Box>
       <MaterialReactTable table={table} />
 
-      {/* Confirmation Dialog */}
+      {/* Edit Dialog */}
+      <EditProductDialog
+        open={editDialog.open}
+        product={editDialog.product}
+        onClose={() => setEditDialog({ open: false, product: null })}
+        onSave={handleEditSave}
+        onImageUpload={onImageUpload}
+      />
+
+      {/* Delete Confirmation Dialog */}
       <Dialog
         open={confirmDialog.open}
         onClose={() => setConfirmDialog({ open: false, type: null, itemId: null })}
       >
-        <DialogTitle>
-          {confirmDialog.type === 'delete' ? 'Confirm Delete' : 'Confirm Update'}
-        </DialogTitle>
+        <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {confirmDialog.type === 'delete'
-              ? 'Are you sure you want to delete this product? This action cannot be undone.'
-              : 'Are you sure you want to update this product?'}
+            Are you sure you want to delete this product? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmDialog({ open: false, type: null, itemId: null })}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm} color="primary" variant="contained">
-            {confirmDialog.type === 'delete' ? 'Delete' : 'Update'}
+          <Button onClick={handleConfirmDelete} color="error" variant="contained">
+            Delete
           </Button>
         </DialogActions>
       </Dialog>

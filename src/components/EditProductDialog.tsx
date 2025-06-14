@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -12,9 +12,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Avatar,
+  IconButton,
+  Typography,
 } from '@mui/material';
+import { CloudUpload as CloudUploadIcon, Delete as DeleteIcon } from '@mui/icons-material';
 
 interface ProductTypeDto {
+  id?: string;
   companyID: string;
   productTypeID: string;
   companyName: string;
@@ -26,10 +31,12 @@ interface ProductTypeDto {
   metaData?: Record<string, any>;
 }
 
-interface AddProductDialogProps {
+interface EditProductDialogProps {
   open: boolean;
+  product: ProductTypeDto | null;
   onClose: () => void;
-  onSave: (product: Omit<ProductTypeDto, 'id'>) => void;
+  onSave: (product: ProductTypeDto) => void;
+  onImageUpload: (productId: string, file: File) => void;
 }
 
 const categories = [
@@ -43,12 +50,15 @@ const categories = [
   'Books & Media',
 ];
 
-const AddProductDialog: React.FC<AddProductDialogProps> = ({
+const EditProductDialog: React.FC<EditProductDialogProps> = ({
   open,
+  product,
   onClose,
   onSave,
+  onImageUpload,
 }) => {
-  const [formData, setFormData] = useState<Omit<ProductTypeDto, 'id'>>({
+  const [formData, setFormData] = useState<ProductTypeDto>({
+    id: '',
     companyID: '',
     productTypeID: '',
     companyName: '',
@@ -59,41 +69,38 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({
     netContent: 0,
   });
 
-  const handleInputChange = (field: keyof Omit<ProductTypeDto, 'id'>, value: any) => {
+  useEffect(() => {
+    if (product) {
+      setFormData(product);
+    }
+  }, [product]);
+
+  const handleInputChange = (field: keyof ProductTypeDto, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const handleSave = () => {
-    onSave(formData);
-    // Reset form
-    setFormData({
-      companyID: '',
-      productTypeID: '',
-      companyName: '',
-      productName: '',
-      productDescription: '',
-      productImage: '',
-      globalProductCategory: '',
-      netContent: 0,
-    });
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && formData.id) {
+      if (file.type.startsWith('image/')) {
+        onImageUpload(formData.id, file);
+        // Create temporary URL for preview
+        const imageUrl = URL.createObjectURL(file);
+        handleInputChange('productImage', imageUrl);
+      }
+    }
   };
 
-  const handleClose = () => {
+  const handleRemoveImage = () => {
+    handleInputChange('productImage', '');
+  };
+
+  const handleSave = () => {
+    onSave(formData);
     onClose();
-    // Reset form
-    setFormData({
-      companyID: '',
-      productTypeID: '',
-      companyName: '',
-      productName: '',
-      productDescription: '',
-      productImage: '',
-      globalProductCategory: '',
-      netContent: 0,
-    });
   };
 
   const isFormValid = () => {
@@ -109,12 +116,56 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ pb: 2, fontSize: '1.5rem', fontWeight: 600 }}>
-        Add New Product
+        Edit Product
       </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
+          {/* Image Upload Section */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, border: '1px dashed #ccc', borderRadius: 2 }}>
+            <Avatar
+              src={formData.productImage}
+              sx={{ width: 80, height: 80 }}
+              variant="rounded"
+            >
+              {!formData.productImage && 'IMG'}
+            </Avatar>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Product Image
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <input
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  id="image-upload-edit"
+                  type="file"
+                  onChange={handleImageUpload}
+                />
+                <label htmlFor="image-upload-edit">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUploadIcon />}
+                    size="small"
+                  >
+                    Upload Image
+                  </Button>
+                </label>
+                {formData.productImage && (
+                  <IconButton
+                    size="small"
+                    onClick={handleRemoveImage}
+                    color="error"
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
+            </Box>
+          </Box>
+
           <Box sx={{ display: 'flex', gap: 2 }}>
             <TextField
               label="Company ID"
@@ -193,7 +244,7 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({
         </Box>
       </DialogContent>
       <DialogActions sx={{ p: 3, pt: 2 }}>
-        <Button onClick={handleClose} variant="outlined" size="large">
+        <Button onClick={onClose} variant="outlined" size="large">
           Cancel
         </Button>
         <Button 
@@ -203,11 +254,11 @@ const AddProductDialog: React.FC<AddProductDialogProps> = ({
           size="large"
           sx={{ minWidth: 120 }}
         >
-          Add Product
+          Save Changes
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default AddProductDialog;
+export default EditProductDialog;
