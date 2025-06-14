@@ -6,19 +6,23 @@ import {
   Paper, 
   Stack, 
   Chip, 
-  TextField,
   Alert,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
-  FormHelperText
+  FormHelperText,
+  Card,
+  CardContent,
+  Grid,
+  Divider
 } from '@mui/material';
 import { 
   CheckCircle as CheckCircleIcon, 
   Error as ErrorIcon,
   Storage as StorageIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon,
+  ArrowForward as ArrowForwardIcon
 } from '@mui/icons-material';
 
 interface ColumnMapping {
@@ -57,19 +61,32 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
     .map(([field]) => field);
 
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
-      <Typography variant="h6" gutterBottom>
+    <Paper sx={{ p: 4, mb: 3, backgroundColor: '#fafafa' }}>
+      <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
         2. Map Column Names
       </Typography>
       
-      <Alert severity="info" sx={{ mb: 2 }}>
-        <Typography variant="body2">
-          <strong>Required ProductTypeDto fields:</strong> {requiredApiFields.join(', ')}
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          Each DTO field can only be mapped to <strong>one column</strong>. Unmapped columns should be assigned to <strong>metaData</strong>.
-        </Typography>
-      </Alert>
+      <Card sx={{ mb: 3, border: '1px solid #e3f2fd' }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2, color: '#1976d2' }}>
+            ProductTypeDto Required Fields
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {requiredApiFields.map(field => (
+              <Chip 
+                key={field}
+                label={field}
+                variant="outlined"
+                color={mappedFields.includes(field) ? 'success' : 'default'}
+                size="small"
+              />
+            ))}
+          </Box>
+          <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
+            Each DTO field can only be mapped to <strong>one column</strong>. Unmapped columns should be assigned to <strong>metaData</strong>.
+          </Typography>
+        </CardContent>
+      </Card>
 
       {/* Validation Alerts */}
       {unmappedRequiredFields.length > 0 && (
@@ -90,96 +107,110 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
           </Typography>
         </Alert>
       )}
+
+      <Divider sx={{ my: 3 }} />
       
-      <Stack spacing={2}>
+      <Grid container spacing={2}>
         {columnMappings.map((mapping, index) => (
-          <Box key={mapping.originalName} sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-            <Chip 
-              label={mapping.originalName}
-              variant="outlined"
-              sx={{ minWidth: 120, mt: 1 }}
-            />
-            <Typography variant="body2" sx={{ mt: 1.5 }}>→</Typography>
-            
-            <Box sx={{ flex: 1 }}>
-              <FormControl 
-                size="small" 
-                sx={{ minWidth: 200 }} 
-                error={!mapping.isValid}
-                fullWidth
-              >
-                <InputLabel>Field Mapping</InputLabel>
-                <Select
-                  value={mapping.mappedName}
-                  onChange={(e) => onColumnMappingChange(index, e.target.value)}
-                  label="Field Mapping"
-                >
-                  <MenuItem value="">
-                    <em>Select mapping...</em>
-                  </MenuItem>
-                  <MenuItem value="metaData">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <StorageIcon fontSize="small" />
-                      metaData (container)
-                    </Box>
-                  </MenuItem>
-                  {requiredApiFields.map(field => (
-                    <MenuItem 
-                      key={field} 
-                      value={field}
-                      disabled={fieldUsageCount.get(field) > 0 && mapping.mappedName !== field}
+          <Grid item xs={12} key={mapping.originalName}>
+            <Card sx={{ 
+              border: mapping.isValid ? '1px solid #4caf50' : '1px solid #f44336',
+              backgroundColor: mapping.isValid ? '#f9fff9' : '#fff5f5'
+            }}>
+              <CardContent sx={{ py: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ minWidth: 150 }}>
+                    <Chip 
+                      label={mapping.originalName}
+                      variant="filled"
+                      color="primary"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Box>
+                  
+                  <ArrowForwardIcon color="action" />
+                  
+                  <Box sx={{ flex: 1, maxWidth: 300 }}>
+                    <FormControl 
+                      size="small" 
+                      fullWidth
+                      error={!mapping.isValid}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                        <span>{field}</span>
-                        {fieldUsageCount.get(field) > 0 && mapping.mappedName !== field && (
-                          <Chip 
-                            size="small" 
-                            label="Used" 
-                            color="secondary" 
-                            variant="outlined"
-                          />
-                        )}
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-                {mapping.errorMessage && (
-                  <FormHelperText error>
-                    {mapping.errorMessage}
-                  </FormHelperText>
-                )}
-              </FormControl>
-            </Box>
-            
-            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 100, mt: 1 }}>
-              {mapping.isValid ? (
-                mapping.isMetadata ? (
-                  <Chip 
-                    icon={<StorageIcon />} 
-                    label="Metadata" 
-                    color="secondary" 
-                    size="small" 
-                  />
-                ) : (
-                  <Chip 
-                    icon={<CheckCircleIcon />} 
-                    label="Mapped" 
-                    color="success" 
-                    size="small" 
-                  />
-                )
-              ) : (
-                <Chip 
-                  icon={<ErrorIcon />} 
-                  label="Invalid" 
-                  color="error" 
-                  size="small" 
-                />
-              )}
-            </Box>
-          </Box>
+                      <InputLabel>Field Mapping</InputLabel>
+                      <Select
+                        value={mapping.mappedName}
+                        onChange={(e) => onColumnMappingChange(index, e.target.value)}
+                        label="Field Mapping"
+                      >
+                        <MenuItem value="">
+                          <em>Select mapping...</em>
+                        </MenuItem>
+                        <MenuItem value="metaData">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <StorageIcon fontSize="small" />
+                            metaData (container)
+                          </Box>
+                        </MenuItem>
+                        {requiredApiFields.map(field => (
+                          <MenuItem 
+                            key={field} 
+                            value={field}
+                            disabled={fieldUsageCount.get(field) > 0 && mapping.mappedName !== field}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                              <span>{field}</span>
+                              {fieldUsageCount.get(field) > 0 && mapping.mappedName !== field && (
+                                <Chip 
+                                  size="small" 
+                                  label="Used" 
+                                  color="secondary" 
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {mapping.errorMessage && (
+                        <FormHelperText error>
+                          {mapping.errorMessage}
+                        </FormHelperText>
+                      )}
+                    </FormControl>
+                  </Box>
+                  
+                  <Box sx={{ minWidth: 120 }}>
+                    {mapping.isValid ? (
+                      mapping.isMetadata ? (
+                        <Chip 
+                          icon={<StorageIcon />} 
+                          label="Metadata" 
+                          color="secondary" 
+                          size="small" 
+                        />
+                      ) : (
+                        <Chip 
+                          icon={<CheckCircleIcon />} 
+                          label="Mapped" 
+                          color="success" 
+                          size="small" 
+                        />
+                      )
+                    ) : (
+                      <Chip 
+                        icon={<ErrorIcon />} 
+                        label="Invalid" 
+                        color="error" 
+                        size="small" 
+                      />
+                    )}
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
         ))}
-      </Stack>
+      </Grid>
     </Paper>
   );
 };

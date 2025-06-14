@@ -1,10 +1,10 @@
 
-import CSVUploader from '@/components/CSVUploader';
+import DataImportContainer from '@/containers/DataImportContainer';
 
 const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50">
-      <CSVUploader />
+      <DataImportContainer />
     </div>
   );
 };
