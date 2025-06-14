@@ -6,7 +6,8 @@ import {
   Paper, 
   Stack, 
   Chip, 
-  TextField 
+  TextField,
+  Alert
 } from '@mui/material';
 import { 
   CheckCircle as CheckCircleIcon, 
@@ -38,9 +39,12 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
       <Typography variant="h6" gutterBottom>
         2. Map Column Names
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Map your CSV columns to API field names. Required fields: {requiredApiFields.join(', ')}
-      </Typography>
+      
+      <Alert severity="info" sx={{ mb: 2 }}>
+        <Typography variant="body2">
+          <strong>Required ProductTypeDto fields:</strong> {requiredApiFields.join(', ')}
+        </Typography>
+      </Alert>
       
       <Stack spacing={2}>
         {columnMappings.map((mapping, index) => (
@@ -57,6 +61,7 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
               onChange={(e) => onColumnMappingChange(index, e.target.value)}
               error={!mapping.isValid}
               helperText={mapping.errorMessage}
+              placeholder="Enter ProductTypeDto field name"
               sx={{ minWidth: 200 }}
             />
             {mapping.isValid ? (

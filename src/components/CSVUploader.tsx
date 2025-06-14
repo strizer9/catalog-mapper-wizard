@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import Papa from 'papaparse';
 import { Box, Button, Typography } from '@mui/material';
@@ -38,22 +37,27 @@ const CSVUploader: React.FC = () => {
   });
   const [editFormData, setEditFormData] = useState<CSVData>({});
 
-  // Required API fields for validation
+  // Required API fields based on ProductTypeDto
   const requiredApiFields = [
+    'companyID',
+    'productTypeID',
+    'companyName',
     'productName',
-    'price',
-    'category',
-    'description',
-    'sku',
-    'stock',
+    'productDescription',
+    'productImage',
+    'globalProductCategory',
+    'netContent',
   ];
 
   const validateColumnName = (columnName: string): boolean => {
+    if (!columnName || columnName.trim() === '') return false;
+    
     const normalizedName = columnName.toLowerCase().replace(/[^a-z0-9]/g, '');
     return requiredApiFields.some(field => 
-      field.toLowerCase().includes(normalizedName) || 
-      normalizedName.includes(field.toLowerCase())
-    ) || normalizedName.length > 2;
+      field.toLowerCase() === normalizedName ||
+      normalizedName.includes(field.toLowerCase()) ||
+      field.toLowerCase().includes(normalizedName)
+    );
   };
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,11 +116,13 @@ const CSVUploader: React.FC = () => {
 
   const handleColumnMappingChange = (index: number, newMappedName: string) => {
     const updatedMappings = [...columnMappings];
+    const isValid = validateColumnName(newMappedName);
+    
     updatedMappings[index] = {
       ...updatedMappings[index],
       mappedName: newMappedName,
-      isValid: validateColumnName(newMappedName),
-      errorMessage: validateColumnName(newMappedName) ? undefined : 'Invalid column name for API',
+      isValid,
+      errorMessage: isValid ? undefined : 'Must match one of the required ProductTypeDto fields',
     };
     setColumnMappings(updatedMappings);
   };
@@ -157,6 +163,17 @@ const CSVUploader: React.FC = () => {
     const invalidMappings = columnMappings.filter(mapping => !mapping.isValid);
     if (invalidMappings.length > 0) {
       toast.error('Please fix all column mapping issues before uploading');
+      return;
+    }
+
+    // Check if all required fields are mapped
+    const mappedFields = columnMappings.map(m => m.mappedName.toLowerCase());
+    const missingFields = requiredApiFields.filter(field => 
+      !mappedFields.some(mapped => mapped.includes(field.toLowerCase()))
+    );
+
+    if (missingFields.length > 0) {
+      toast.error(`Missing required fields: ${missingFields.join(', ')}`);
       return;
     }
 
