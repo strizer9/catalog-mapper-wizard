@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Box,
@@ -17,7 +16,6 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   CloudUpload as CloudUploadIcon,
-  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 import {
   MaterialReactTable,
@@ -45,7 +43,6 @@ interface ProductDataGridProps {
   onUpdate: (id: string, updatedData: ProductTypeDto) => void;
   onDelete: (id: string) => void;
   onImageUpload: (id: string, file: File) => void;
-  onBack?: () => void;
 }
 
 interface ConfirmationDialogState {
@@ -60,7 +57,6 @@ const ProductDataGrid: React.FC<ProductDataGridProps> = ({
   onUpdate,
   onDelete,
   onImageUpload,
-  onBack,
 }) => {
   const [confirmDialog, setConfirmDialog] = useState<ConfirmationDialogState>({
     open: false,
@@ -217,15 +213,6 @@ const ProductDataGrid: React.FC<ProductDataGridProps> = ({
         <Typography variant="h6">
           Product Data Management ({data.length} records)
         </Typography>
-        {onBack && (
-          <Button
-            startIcon={<ArrowBackIcon />}
-            onClick={onBack}
-            variant="outlined"
-          >
-            Back to Import
-          </Button>
-        )}
       </Box>
       <MaterialReactTable table={table} />
 

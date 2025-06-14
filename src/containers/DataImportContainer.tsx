@@ -1,6 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Papa from 'papaparse';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, Button, Fab } from '@mui/material';
+import { 
+  Upload as UploadIcon, 
+  Add as AddIcon,
+  ArrowBack as ArrowBackIcon 
+} from '@mui/icons-material';
 import { type MRT_Row } from 'material-react-table';
 
 import FileUploadSection from '../components/FileUploadSection';
@@ -8,6 +13,7 @@ import ColumnMappingSection from '../components/ColumnMappingSection';
 import DataGridSection from '../components/DataGridSection';
 import EditRowDialog from '../components/EditRowDialog';
 import ProductDataGrid from '../components/ProductDataGrid';
+import AddProductDialog from '../components/AddProductDialog';
 import { useCustomToast } from '../hooks/useCustomToast';
 
 interface CSVData {
@@ -41,12 +47,15 @@ interface ProductTypeDto {
   metaData?: Record<string, any>;
 }
 
+type ViewMode = 'productGrid' | 'csvImport';
+
 const DataImportContainer: React.FC = () => {
+  const [viewMode, setViewMode] = useState<ViewMode>('productGrid');
+  const [productData, setProductData] = useState<ProductTypeDto[]>([]);
   const [csvData, setCsvData] = useState<CSVData[]>([]);
   const [originalColumns, setOriginalColumns] = useState<string[]>([]);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
-  const [showProductGrid, setShowProductGrid] = useState(false);
-  const [productData, setProductData] = useState<ProductTypeDto[]>([]);
+  const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
   const [editDialog, setEditDialog] = useState<EditDialogData>({
     open: false,
     rowData: null,
@@ -67,6 +76,45 @@ const DataImportContainer: React.FC = () => {
     'globalProductCategory',
     'netContent',
   ];
+
+  // Simulate API call to fetch existing products
+  useEffect(() => {
+    const fetchProducts = async () => {
+      // Simulate API delay
+      setTimeout(() => {
+        const mockProducts: ProductTypeDto[] = [
+          {
+            id: '1',
+            companyID: 'COMP001',
+            productTypeID: 'PT001',
+            companyName: 'Acme Corp',
+            productName: 'Premium Widget',
+            productDescription: 'High-quality widget for professional use',
+            productImage: 'https://via.placeholder.com/150',
+            globalProductCategory: 'Electronics',
+            netContent: 250,
+            metaData: { weight: '1.5kg', color: 'blue' }
+          },
+          {
+            id: '2',
+            companyID: 'COMP002',
+            productTypeID: 'PT002',
+            companyName: 'Tech Solutions',
+            productName: 'Smart Device',
+            productDescription: 'IoT enabled smart device',
+            productImage: 'https://via.placeholder.com/150',
+            globalProductCategory: 'Technology',
+            netContent: 500,
+            metaData: { connectivity: 'WiFi', battery: '10 hours' }
+          }
+        ];
+        setProductData(mockProducts);
+        showSuccess('Products loaded successfully');
+      }, 1000);
+    };
+
+    fetchProducts();
+  }, [showSuccess]);
 
   const validateAllColumnMappings = (mappings: ColumnMapping[]): ColumnMapping[] => {
     const updatedMappings = [...mappings];
@@ -172,7 +220,6 @@ const DataImportContainer: React.FC = () => {
         setOriginalColumns(headers);
         setColumnMappings(initialMappings);
         setCsvData(csvObjects);
-        setShowProductGrid(false); // Reset to import view
         showSuccess(`Successfully loaded ${csvObjects.length} rows`);
       },
       header: false,
@@ -286,10 +333,11 @@ const DataImportContainer: React.FC = () => {
 
     console.log('Data ready for API upload:', transformedData);
     
-    // Simulate API upload and then show the ProductDataGrid
+    // Simulate API upload and add to existing product data
     setTimeout(() => {
-      setProductData(transformedData);
-      setShowProductGrid(true);
+      const updatedProducts = [...productData, ...transformedData];
+      setProductData(updatedProducts);
+      setViewMode('productGrid');
       showSuccess(`Successfully uploaded ${transformedData.length} records!`);
     }, 1000);
   };
@@ -322,20 +370,61 @@ const DataImportContainer: React.FC = () => {
     showSuccess('Image uploaded successfully');
   };
 
-  const handleBackToImport = () => {
-    setShowProductGrid(false);
+  const handleAddProduct = (newProduct: Omit<ProductTypeDto, 'id'>) => {
+    const productWithId = {
+      ...newProduct,
+      id: `new-${Date.now()}`,
+    };
+    setProductData([...productData, productWithId]);
+    setAddProductDialogOpen(false);
+    showSuccess('Product added successfully');
   };
 
-  if (showProductGrid) {
+  if (viewMode === 'csvImport') {
     return (
       <Box sx={{ p: 3 }}>
-        <ProductDataGrid
-          data={productData}
-          onUpdate={handleProductUpdate}
-          onDelete={handleProductDelete}
-          onImageUpload={handleImageUpload}
-          onBack={handleBackToImport}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => setViewMode('productGrid')}
+            variant="outlined"
+          >
+            Back to Products
+          </Button>
+          <Typography variant="h4">
+            CSV Data Import & Mapping Tool
+          </Typography>
+        </Box>
+        
+        <FileUploadSection
+          onFileUpload={handleFileUpload}
+          dataCount={csvData.length}
+          columnCount={originalColumns.length}
+          onUploadToAPI={handleUploadToAPI}
         />
+
+        <ColumnMappingSection
+          columnMappings={columnMappings}
+          onColumnMappingChange={handleColumnMappingChange}
+          requiredApiFields={requiredApiFields}
+        />
+
+        <DataGridSection
+          csvData={csvData}
+          originalColumns={originalColumns}
+          onEditRow={handleEditRow}
+          onDeleteRow={handleDeleteRow}
+        />
+
+        <EditRowDialog
+          open={editDialog.open}
+          originalColumns={originalColumns}
+          editFormData={editFormData}
+          onClose={handleCloseEdit}
+          onSave={handleSaveEdit}
+          onFormDataChange={setEditFormData}
+        />
+
         {ToastComponent}
       </Box>
     );
@@ -343,37 +432,40 @@ const DataImportContainer: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        CSV Data Import & Mapping Tool
-      </Typography>
-      
-      <FileUploadSection
-        onFileUpload={handleFileUpload}
-        dataCount={csvData.length}
-        columnCount={originalColumns.length}
-        onUploadToAPI={handleUploadToAPI}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4">
+          Product Management
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<UploadIcon />}
+            onClick={() => setViewMode('csvImport')}
+          >
+            Import CSV Data
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setAddProductDialogOpen(true)}
+          >
+            Add Product
+          </Button>
+        </Box>
+      </Box>
+
+      <ProductDataGrid
+        data={productData}
+        onUpdate={handleProductUpdate}
+        onDelete={handleProductDelete}
+        onImageUpload={handleImageUpload}
       />
 
-      <ColumnMappingSection
-        columnMappings={columnMappings}
-        onColumnMappingChange={handleColumnMappingChange}
+      <AddProductDialog
+        open={addProductDialogOpen}
+        onClose={() => setAddProductDialogOpen(false)}
+        onSave={handleAddProduct}
         requiredApiFields={requiredApiFields}
-      />
-
-      <DataGridSection
-        csvData={csvData}
-        originalColumns={originalColumns}
-        onEditRow={handleEditRow}
-        onDeleteRow={handleDeleteRow}
-      />
-
-      <EditRowDialog
-        open={editDialog.open}
-        originalColumns={originalColumns}
-        editFormData={editFormData}
-        onClose={handleCloseEdit}
-        onSave={handleSaveEdit}
-        onFormDataChange={setEditFormData}
       />
 
       {ToastComponent}
