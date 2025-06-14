@@ -17,6 +17,7 @@ interface ColumnMapping {
   originalName: string;
   mappedName: string;
   isValid: boolean;
+  isMetadata: boolean;
   errorMessage?: string;
 }
 
@@ -49,15 +50,24 @@ const CSVUploader: React.FC = () => {
     'netContent',
   ];
 
-  const validateColumnName = (columnName: string): boolean => {
-    if (!columnName || columnName.trim() === '') return false;
+  const validateColumnName = (columnName: string): { isValid: boolean; isMetadata: boolean } => {
+    if (!columnName || columnName.trim() === '') {
+      return { isValid: false, isMetadata: false };
+    }
     
     const normalizedName = columnName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return requiredApiFields.some(field => 
+    const matchesDto = requiredApiFields.some(field => 
       field.toLowerCase() === normalizedName ||
       normalizedName.includes(field.toLowerCase()) ||
       field.toLowerCase().includes(normalizedName)
     );
+
+    if (matchesDto) {
+      return { isValid: true, isMetadata: false };
+    }
+
+    // If it doesn't match DTO fields, it can be metadata
+    return { isValid: true, isMetadata: true };
   };
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,12 +105,16 @@ const CSVUploader: React.FC = () => {
           return obj;
         });
 
-        const mappings: ColumnMapping[] = headers.map(header => ({
-          originalName: header,
-          mappedName: header,
-          isValid: validateColumnName(header),
-          errorMessage: validateColumnName(header) ? undefined : 'Column name should match API requirements',
-        }));
+        const mappings: ColumnMapping[] = headers.map(header => {
+          const validation = validateColumnName(header);
+          return {
+            originalName: header,
+            mappedName: validation.isMetadata ? 'metaData' : header,
+            isValid: validation.isValid,
+            isMetadata: validation.isMetadata,
+            errorMessage: validation.isValid ? undefined : 'Column name should match API requirements or be assigned to metadata',
+          };
+        });
 
         setOriginalColumns(headers);
         setColumnMappings(mappings);
@@ -116,13 +130,17 @@ const CSVUploader: React.FC = () => {
 
   const handleColumnMappingChange = (index: number, newMappedName: string) => {
     const updatedMappings = [...columnMappings];
-    const isValid = validateColumnName(newMappedName);
+    const validation = validateColumnName(newMappedName);
+    
+    // Special handling for metadata selection
+    const isMetadata = newMappedName === 'metaData';
     
     updatedMappings[index] = {
       ...updatedMappings[index],
       mappedName: newMappedName,
-      isValid,
-      errorMessage: isValid ? undefined : 'Must match one of the required ProductTypeDto fields',
+      isValid: validation.isValid || isMetadata,
+      isMetadata: isMetadata || validation.isMetadata,
+      errorMessage: (validation.isValid || isMetadata) ? undefined : 'Must match ProductTypeDto fields or select metaData',
     };
     setColumnMappings(updatedMappings);
   };
@@ -166,10 +184,13 @@ const CSVUploader: React.FC = () => {
       return;
     }
 
-    // Check if all required fields are mapped
-    const mappedFields = columnMappings.map(m => m.mappedName.toLowerCase());
+    // Check if all required fields are mapped (excluding metadata fields)
+    const dtoMappedFields = columnMappings
+      .filter(m => !m.isMetadata)
+      .map(m => m.mappedName.toLowerCase());
+    
     const missingFields = requiredApiFields.filter(field => 
-      !mappedFields.some(mapped => mapped.includes(field.toLowerCase()))
+      !dtoMappedFields.some(mapped => mapped.includes(field.toLowerCase()))
     );
 
     if (missingFields.length > 0) {
@@ -179,9 +200,21 @@ const CSVUploader: React.FC = () => {
 
     const transformedData = csvData.map(row => {
       const newRow: CSVData = {};
+      const metaDataObj: CSVData = {};
+
       columnMappings.forEach(mapping => {
-        newRow[mapping.mappedName] = row[mapping.originalName];
+        if (mapping.isMetadata) {
+          metaDataObj[mapping.originalName] = row[mapping.originalName];
+        } else {
+          newRow[mapping.mappedName] = row[mapping.originalName];
+        }
       });
+
+      // Add metadata container if there are metadata fields
+      if (Object.keys(metaDataObj).length > 0) {
+        newRow.metaData = metaDataObj;
+      }
+
       return newRow;
     });
 

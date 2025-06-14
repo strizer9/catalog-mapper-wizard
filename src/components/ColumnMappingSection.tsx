@@ -7,17 +7,23 @@ import {
   Stack, 
   Chip, 
   TextField,
-  Alert
+  Alert,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import { 
   CheckCircle as CheckCircleIcon, 
-  Error as ErrorIcon 
+  Error as ErrorIcon,
+  Storage as StorageIcon
 } from '@mui/icons-material';
 
 interface ColumnMapping {
   originalName: string;
   mappedName: string;
   isValid: boolean;
+  isMetadata: boolean;
   errorMessage?: string;
 }
 
@@ -44,6 +50,9 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
         <Typography variant="body2">
           <strong>Required ProductTypeDto fields:</strong> {requiredApiFields.join(', ')}
         </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          Columns that don't match DTO fields can be mapped to <strong>metaData</strong> container.
+        </Typography>
       </Alert>
       
       <Stack spacing={2}>
@@ -55,17 +64,49 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
               sx={{ minWidth: 120 }}
             />
             <Typography variant="body2">→</Typography>
-            <TextField
-              size="small"
-              value={mapping.mappedName}
-              onChange={(e) => onColumnMappingChange(index, e.target.value)}
-              error={!mapping.isValid}
-              helperText={mapping.errorMessage}
-              placeholder="Enter ProductTypeDto field name"
-              sx={{ minWidth: 200 }}
-            />
+            
+            {mapping.isMetadata ? (
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel>Field Mapping</InputLabel>
+                <Select
+                  value={mapping.mappedName}
+                  onChange={(e) => onColumnMappingChange(index, e.target.value)}
+                  label="Field Mapping"
+                >
+                  <MenuItem value="metaData">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <StorageIcon fontSize="small" />
+                      metaData (container)
+                    </Box>
+                  </MenuItem>
+                  {requiredApiFields.map(field => (
+                    <MenuItem key={field} value={field}>{field}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            ) : (
+              <TextField
+                size="small"
+                value={mapping.mappedName}
+                onChange={(e) => onColumnMappingChange(index, e.target.value)}
+                error={!mapping.isValid}
+                helperText={mapping.errorMessage}
+                placeholder="Enter ProductTypeDto field name or 'metaData'"
+                sx={{ minWidth: 200 }}
+              />
+            )}
+            
             {mapping.isValid ? (
-              <CheckCircleIcon color="success" fontSize="small" />
+              mapping.isMetadata ? (
+                <Chip 
+                  icon={<StorageIcon />} 
+                  label="Metadata" 
+                  color="secondary" 
+                  size="small" 
+                />
+              ) : (
+                <CheckCircleIcon color="success" fontSize="small" />
+              )
             ) : (
               <ErrorIcon color="error" fontSize="small" />
             )}
