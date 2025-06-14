@@ -50,6 +50,26 @@ const categories = [
   'Books & Media',
 ];
 
+// Simulate S3 signed URL API call
+const getSignedUrl = async (fileName: string, fileType: string): Promise<string> => {
+  // In real implementation, this would call your API
+  console.log('Requesting signed URL for:', fileName, fileType);
+  
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Return mock signed URL
+  return `https://mock-s3-bucket.s3.amazonaws.com/products/${fileName}?signature=mock-signature`;
+};
+
+const uploadToS3 = async (signedUrl: string, file: File): Promise<void> => {
+  // In real implementation, this would upload to S3 using the signed URL
+  console.log('Uploading to S3:', signedUrl, file);
+  
+  // Simulate upload delay
+  await new Promise(resolve => setTimeout(resolve, 1000));
+};
+
 const EditProductDialog: React.FC<EditProductDialogProps> = ({
   open,
   product,
@@ -68,10 +88,13 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
     globalProductCategory: '',
     netContent: 0,
   });
+  const [isUploading, setIsUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string>('');
 
   useEffect(() => {
     if (product) {
       setFormData(product);
+      setImagePreview(product.productImage || '');
     }
   }, [product]);
 
@@ -82,20 +105,47 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
     }));
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && formData.id) {
-      if (file.type.startsWith('image/')) {
-        onImageUpload(formData.id, file);
-        // Create temporary URL for preview
-        const imageUrl = URL.createObjectURL(file);
-        handleInputChange('productImage', imageUrl);
-      }
+    if (!file || !formData.id) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file');
+      return;
+    }
+
+    setIsUploading(true);
+    
+    try {
+      // Generate unique filename
+      const timestamp = Date.now();
+      const fileName = `${timestamp}-${file.name}`;
+      
+      // Get signed URL
+      const signedUrl = await getSignedUrl(fileName, file.type);
+      
+      // Upload to S3
+      await uploadToS3(signedUrl, file);
+      
+      // Update form data with the filename (not the full URL)
+      handleInputChange('productImage', fileName);
+      
+      // Create temporary URL for preview
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
+      
+      console.log('Image uploaded successfully:', fileName);
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      alert('Image upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
   const handleRemoveImage = () => {
     handleInputChange('productImage', '');
+    setImagePreview('');
   };
 
   const handleSave = () => {
@@ -125,11 +175,11 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
           {/* Image Upload Section */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, border: '1px dashed #ccc', borderRadius: 2 }}>
             <Avatar
-              src={formData.productImage}
+              src={imagePreview}
               sx={{ width: 80, height: 80 }}
               variant="rounded"
             >
-              {!formData.productImage && 'IMG'}
+              {!imagePreview && 'IMG'}
             </Avatar>
             <Box sx={{ flex: 1 }}>
               <Typography variant="subtitle2" gutterBottom>
@@ -142,6 +192,7 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
                   id="image-upload-edit"
                   type="file"
                   onChange={handleImageUpload}
+                  disabled={isUploading}
                 />
                 <label htmlFor="image-upload-edit">
                   <Button
@@ -149,8 +200,9 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
                     component="span"
                     startIcon={<CloudUploadIcon />}
                     size="small"
+                    disabled={isUploading}
                   >
-                    Upload Image
+                    {isUploading ? 'Uploading...' : 'Upload Image'}
                   </Button>
                 </label>
                 {formData.productImage && (
@@ -158,11 +210,17 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
                     size="small"
                     onClick={handleRemoveImage}
                     color="error"
+                    disabled={isUploading}
                   >
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 )}
               </Box>
+              {formData.productImage && (
+                <Typography variant="caption" color="text.secondary">
+                  File: {formData.productImage}
+                </Typography>
+              )}
             </Box>
           </Box>
 
@@ -250,7 +308,7 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
         <Button 
           onClick={handleSave} 
           variant="contained"
-          disabled={!isFormValid()}
+          disabled={!isFormValid() || isUploading}
           size="large"
           sx={{ minWidth: 120 }}
         >

@@ -465,6 +465,7 @@ const DataImportContainer: React.FC = () => {
         open={addProductDialogOpen}
         onClose={() => setAddProductDialogOpen(false)}
         onSave={handleAddProduct}
+        onImageUpload={handleImageUpload}
         requiredApiFields={requiredApiFields}
       />
 
