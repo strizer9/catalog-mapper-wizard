@@ -7,6 +7,7 @@ import FileUploadSection from '../components/FileUploadSection';
 import ColumnMappingSection from '../components/ColumnMappingSection';
 import DataGridSection from '../components/DataGridSection';
 import EditRowDialog from '../components/EditRowDialog';
+import ProductDataGrid from '../components/ProductDataGrid';
 import { useCustomToast } from '../hooks/useCustomToast';
 
 interface CSVData {
@@ -27,10 +28,25 @@ interface EditDialogData {
   rowIndex: number | null;
 }
 
+interface ProductTypeDto {
+  id?: string;
+  companyID: string;
+  productTypeID: string;
+  companyName: string;
+  productName: string;
+  productDescription: any;
+  productImage: string;
+  globalProductCategory: string;
+  netContent: number;
+  metaData?: Record<string, any>;
+}
+
 const DataImportContainer: React.FC = () => {
   const [csvData, setCsvData] = useState<CSVData[]>([]);
   const [originalColumns, setOriginalColumns] = useState<string[]>([]);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
+  const [showProductGrid, setShowProductGrid] = useState(false);
+  const [productData, setProductData] = useState<ProductTypeDto[]>([]);
   const [editDialog, setEditDialog] = useState<EditDialogData>({
     open: false,
     rowData: null,
@@ -38,7 +54,7 @@ const DataImportContainer: React.FC = () => {
   });
   const [editFormData, setEditFormData] = useState<CSVData>({});
 
-  const { showSuccess, showError } = useCustomToast();
+  const { showSuccess, showError, ToastComponent } = useCustomToast();
 
   // Required API fields based on ProductTypeDto
   const requiredApiFields = [
@@ -58,7 +74,7 @@ const DataImportContainer: React.FC = () => {
     
     // Count usage of each DTO field
     mappings.forEach(mapping => {
-      if (!mapping.isMetadata && mapping.mappedName && mapping.mappedName !== '') {
+      if (!mapping.isMetadata && mapping.mappedName && mapping.mappedName !== '' && mapping.mappedName !== 'metaData') {
         const currentCount = dtoFieldUsage.get(mapping.mappedName) || 0;
         dtoFieldUsage.set(mapping.mappedName, currentCount + 1);
       }
@@ -144,20 +160,19 @@ const DataImportContainer: React.FC = () => {
           return obj;
         });
 
-        // Initialize mappings with empty values for proper validation
+        // Initialize mappings with metaData as default
         const initialMappings: ColumnMapping[] = headers.map(header => ({
           originalName: header,
-          mappedName: '',
-          isValid: false,
-          isMetadata: false,
-          errorMessage: 'Please select a mapping for this column',
+          mappedName: 'metaData',
+          isValid: true,
+          isMetadata: true,
+          errorMessage: undefined,
         }));
 
-        const validatedMappings = validateAllColumnMappings(initialMappings);
-
         setOriginalColumns(headers);
-        setColumnMappings(validatedMappings);
+        setColumnMappings(initialMappings);
         setCsvData(csvObjects);
+        setShowProductGrid(false); // Reset to import view
         showSuccess(`Successfully loaded ${csvObjects.length} rows`);
       },
       header: false,
@@ -247,8 +262,10 @@ const DataImportContainer: React.FC = () => {
       return;
     }
 
-    const transformedData = csvData.map(row => {
-      const newRow: CSVData = {};
+    const transformedData = csvData.map((row, index) => {
+      const newRow: any = {
+        id: `temp-${index}`, // Temporary ID for testing
+      };
       const metaDataObj: CSVData = {};
 
       columnMappings.forEach(mapping => {
@@ -264,12 +281,65 @@ const DataImportContainer: React.FC = () => {
         newRow.metaData = metaDataObj;
       }
 
-      return newRow;
+      return newRow as ProductTypeDto;
     });
 
     console.log('Data ready for API upload:', transformedData);
-    showSuccess(`Ready to upload ${transformedData.length} records to API`);
+    
+    // Simulate API upload and then show the ProductDataGrid
+    setTimeout(() => {
+      setProductData(transformedData);
+      setShowProductGrid(true);
+      showSuccess(`Successfully uploaded ${transformedData.length} records!`);
+    }, 1000);
   };
+
+  // ProductDataGrid handlers
+  const handleProductUpdate = (id: string, updatedData: ProductTypeDto) => {
+    console.log('Updating product:', id, updatedData);
+    const updatedProducts = productData.map(product => 
+      product.id === id ? updatedData : product
+    );
+    setProductData(updatedProducts);
+    showSuccess('Product updated successfully');
+  };
+
+  const handleProductDelete = (id: string) => {
+    console.log('Deleting product:', id);
+    const updatedProducts = productData.filter(product => product.id !== id);
+    setProductData(updatedProducts);
+    showSuccess('Product deleted successfully');
+  };
+
+  const handleImageUpload = (id: string, file: File) => {
+    console.log('Uploading image for product:', id, file);
+    // Simulate S3 upload - in real implementation, this would get signed URL and upload
+    const mockImageUrl = URL.createObjectURL(file);
+    const updatedProducts = productData.map(product => 
+      product.id === id ? { ...product, productImage: mockImageUrl } : product
+    );
+    setProductData(updatedProducts);
+    showSuccess('Image uploaded successfully');
+  };
+
+  const handleBackToImport = () => {
+    setShowProductGrid(false);
+  };
+
+  if (showProductGrid) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <ProductDataGrid
+          data={productData}
+          onUpdate={handleProductUpdate}
+          onDelete={handleProductDelete}
+          onImageUpload={handleImageUpload}
+          onBack={handleBackToImport}
+        />
+        {ToastComponent}
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -281,6 +351,7 @@ const DataImportContainer: React.FC = () => {
         onFileUpload={handleFileUpload}
         dataCount={csvData.length}
         columnCount={originalColumns.length}
+        onUploadToAPI={handleUploadToAPI}
       />
 
       <ColumnMappingSection
@@ -304,6 +375,8 @@ const DataImportContainer: React.FC = () => {
         onSave={handleSaveEdit}
         onFormDataChange={setEditFormData}
       />
+
+      {ToastComponent}
     </Box>
   );
 };
