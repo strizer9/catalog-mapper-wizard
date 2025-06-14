@@ -11,12 +11,14 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
+  FormHelperText
 } from '@mui/material';
 import { 
   CheckCircle as CheckCircleIcon, 
   Error as ErrorIcon,
-  Storage as StorageIcon
+  Storage as StorageIcon,
+  Warning as WarningIcon
 } from '@mui/icons-material';
 
 interface ColumnMapping {
@@ -40,6 +42,20 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
 }) => {
   if (columnMappings.length === 0) return null;
 
+  // Count how many times each DTO field is mapped
+  const fieldUsageCount = new Map<string, number>();
+  columnMappings.forEach(mapping => {
+    if (!mapping.isMetadata && mapping.mappedName && mapping.mappedName !== '') {
+      fieldUsageCount.set(mapping.mappedName, (fieldUsageCount.get(mapping.mappedName) || 0) + 1);
+    }
+  });
+
+  const mappedFields = Array.from(fieldUsageCount.keys());
+  const unmappedRequiredFields = requiredApiFields.filter(field => !mappedFields.includes(field));
+  const duplicatedFields = Array.from(fieldUsageCount.entries())
+    .filter(([, count]) => count > 1)
+    .map(([field]) => field);
+
   return (
     <Paper sx={{ p: 3, mb: 3 }}>
       <Typography variant="h6" gutterBottom>
@@ -51,28 +67,56 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
           <strong>Required ProductTypeDto fields:</strong> {requiredApiFields.join(', ')}
         </Typography>
         <Typography variant="body2" sx={{ mt: 1 }}>
-          Columns that don't match DTO fields can be mapped to <strong>metaData</strong> container.
+          Each DTO field can only be mapped to <strong>one column</strong>. Unmapped columns should be assigned to <strong>metaData</strong>.
         </Typography>
       </Alert>
+
+      {/* Validation Alerts */}
+      {unmappedRequiredFields.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            <strong>Missing required fields:</strong> {unmappedRequiredFields.join(', ')}
+          </Typography>
+        </Alert>
+      )}
+
+      {duplicatedFields.length > 0 && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            <strong>Duplicate mappings detected:</strong> {duplicatedFields.join(', ')}
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Each DTO field can only be mapped once. Please fix the duplicate mappings.
+          </Typography>
+        </Alert>
+      )}
       
       <Stack spacing={2}>
         {columnMappings.map((mapping, index) => (
-          <Box key={mapping.originalName} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box key={mapping.originalName} sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
             <Chip 
               label={mapping.originalName}
               variant="outlined"
-              sx={{ minWidth: 120 }}
+              sx={{ minWidth: 120, mt: 1 }}
             />
-            <Typography variant="body2">→</Typography>
+            <Typography variant="body2" sx={{ mt: 1.5 }}>→</Typography>
             
-            {mapping.isMetadata ? (
-              <FormControl size="small" sx={{ minWidth: 200 }}>
+            <Box sx={{ flex: 1 }}>
+              <FormControl 
+                size="small" 
+                sx={{ minWidth: 200 }} 
+                error={!mapping.isValid}
+                fullWidth
+              >
                 <InputLabel>Field Mapping</InputLabel>
                 <Select
                   value={mapping.mappedName}
                   onChange={(e) => onColumnMappingChange(index, e.target.value)}
                   label="Field Mapping"
                 >
+                  <MenuItem value="">
+                    <em>Select mapping...</em>
+                  </MenuItem>
                   <MenuItem value="metaData">
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <StorageIcon fontSize="small" />
@@ -80,36 +124,59 @@ const ColumnMappingSection: React.FC<ColumnMappingSectionProps> = ({
                     </Box>
                   </MenuItem>
                   {requiredApiFields.map(field => (
-                    <MenuItem key={field} value={field}>{field}</MenuItem>
+                    <MenuItem 
+                      key={field} 
+                      value={field}
+                      disabled={fieldUsageCount.get(field) > 0 && mapping.mappedName !== field}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                        <span>{field}</span>
+                        {fieldUsageCount.get(field) > 0 && mapping.mappedName !== field && (
+                          <Chip 
+                            size="small" 
+                            label="Used" 
+                            color="secondary" 
+                            variant="outlined"
+                          />
+                        )}
+                      </Box>
+                    </MenuItem>
                   ))}
                 </Select>
+                {mapping.errorMessage && (
+                  <FormHelperText error>
+                    {mapping.errorMessage}
+                  </FormHelperText>
+                )}
               </FormControl>
-            ) : (
-              <TextField
-                size="small"
-                value={mapping.mappedName}
-                onChange={(e) => onColumnMappingChange(index, e.target.value)}
-                error={!mapping.isValid}
-                helperText={mapping.errorMessage}
-                placeholder="Enter ProductTypeDto field name or 'metaData'"
-                sx={{ minWidth: 200 }}
-              />
-            )}
+            </Box>
             
-            {mapping.isValid ? (
-              mapping.isMetadata ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 100, mt: 1 }}>
+              {mapping.isValid ? (
+                mapping.isMetadata ? (
+                  <Chip 
+                    icon={<StorageIcon />} 
+                    label="Metadata" 
+                    color="secondary" 
+                    size="small" 
+                  />
+                ) : (
+                  <Chip 
+                    icon={<CheckCircleIcon />} 
+                    label="Mapped" 
+                    color="success" 
+                    size="small" 
+                  />
+                )
+              ) : (
                 <Chip 
-                  icon={<StorageIcon />} 
-                  label="Metadata" 
-                  color="secondary" 
+                  icon={<ErrorIcon />} 
+                  label="Invalid" 
+                  color="error" 
                   size="small" 
                 />
-              ) : (
-                <CheckCircleIcon color="success" fontSize="small" />
-              )
-            ) : (
-              <ErrorIcon color="error" fontSize="small" />
-            )}
+              )}
+            </Box>
           </Box>
         ))}
       </Stack>

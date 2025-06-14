@@ -50,24 +50,61 @@ const CSVUploader: React.FC = () => {
     'netContent',
   ];
 
-  const validateColumnName = (columnName: string): { isValid: boolean; isMetadata: boolean } => {
-    if (!columnName || columnName.trim() === '') {
-      return { isValid: false, isMetadata: false };
-    }
+  const validateAllColumnMappings = (mappings: ColumnMapping[]): ColumnMapping[] => {
+    const updatedMappings = [...mappings];
+    const dtoFieldUsage = new Map<string, number>(); // Track how many times each DTO field is used
     
-    const normalizedName = columnName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const matchesDto = requiredApiFields.some(field => 
-      field.toLowerCase() === normalizedName ||
-      normalizedName.includes(field.toLowerCase()) ||
-      field.toLowerCase().includes(normalizedName)
-    );
+    // Count usage of each DTO field
+    mappings.forEach(mapping => {
+      if (!mapping.isMetadata && mapping.mappedName && mapping.mappedName !== '') {
+        const currentCount = dtoFieldUsage.get(mapping.mappedName) || 0;
+        dtoFieldUsage.set(mapping.mappedName, currentCount + 1);
+      }
+    });
 
-    if (matchesDto) {
-      return { isValid: true, isMetadata: false };
-    }
+    // Validate each mapping
+    updatedMappings.forEach((mapping, index) => {
+      if (!mapping.mappedName || mapping.mappedName.trim() === '') {
+        updatedMappings[index] = {
+          ...mapping,
+          isValid: false,
+          errorMessage: 'Please select a mapping for this column',
+        };
+      } else if (mapping.mappedName === 'metaData') {
+        updatedMappings[index] = {
+          ...mapping,
+          isValid: true,
+          isMetadata: true,
+          errorMessage: undefined,
+        };
+      } else if (requiredApiFields.includes(mapping.mappedName)) {
+        const usageCount = dtoFieldUsage.get(mapping.mappedName) || 0;
+        if (usageCount > 1) {
+          updatedMappings[index] = {
+            ...mapping,
+            isValid: false,
+            isMetadata: false,
+            errorMessage: `"${mapping.mappedName}" is already mapped to another column. Each DTO field can only be mapped once.`,
+          };
+        } else {
+          updatedMappings[index] = {
+            ...mapping,
+            isValid: true,
+            isMetadata: false,
+            errorMessage: undefined,
+          };
+        }
+      } else {
+        updatedMappings[index] = {
+          ...mapping,
+          isValid: false,
+          isMetadata: false,
+          errorMessage: `"${mapping.mappedName}" is not a valid ProductTypeDto field. Please select from the available fields or choose metaData.`,
+        };
+      }
+    });
 
-    // If it doesn't match DTO fields, it can be metadata
-    return { isValid: true, isMetadata: true };
+    return updatedMappings;
   };
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,19 +142,19 @@ const CSVUploader: React.FC = () => {
           return obj;
         });
 
-        const mappings: ColumnMapping[] = headers.map(header => {
-          const validation = validateColumnName(header);
-          return {
-            originalName: header,
-            mappedName: validation.isMetadata ? 'metaData' : header,
-            isValid: validation.isValid,
-            isMetadata: validation.isMetadata,
-            errorMessage: validation.isValid ? undefined : 'Column name should match API requirements or be assigned to metadata',
-          };
-        });
+        // Initialize mappings with empty values for proper validation
+        const initialMappings: ColumnMapping[] = headers.map(header => ({
+          originalName: header,
+          mappedName: '',
+          isValid: false,
+          isMetadata: false,
+          errorMessage: 'Please select a mapping for this column',
+        }));
+
+        const validatedMappings = validateAllColumnMappings(initialMappings);
 
         setOriginalColumns(headers);
-        setColumnMappings(mappings);
+        setColumnMappings(validatedMappings);
         setCsvData(csvObjects);
         toast.success(`Successfully loaded ${csvObjects.length} rows`);
       },
@@ -130,19 +167,14 @@ const CSVUploader: React.FC = () => {
 
   const handleColumnMappingChange = (index: number, newMappedName: string) => {
     const updatedMappings = [...columnMappings];
-    const validation = validateColumnName(newMappedName);
-    
-    // Special handling for metadata selection
-    const isMetadata = newMappedName === 'metaData';
-    
     updatedMappings[index] = {
       ...updatedMappings[index],
       mappedName: newMappedName,
-      isValid: validation.isValid || isMetadata,
-      isMetadata: isMetadata || validation.isMetadata,
-      errorMessage: (validation.isValid || isMetadata) ? undefined : 'Must match ProductTypeDto fields or select metaData',
     };
-    setColumnMappings(updatedMappings);
+    
+    // Validate all mappings after the change
+    const validatedMappings = validateAllColumnMappings(updatedMappings);
+    setColumnMappings(validatedMappings);
   };
 
   const handleEditRow = (row: MRT_Row<CSVData>) => {
@@ -184,17 +216,32 @@ const CSVUploader: React.FC = () => {
       return;
     }
 
-    // Check if all required fields are mapped (excluding metadata fields)
-    const dtoMappedFields = columnMappings
-      .filter(m => !m.isMetadata)
-      .map(m => m.mappedName.toLowerCase());
+    // Check if all required fields are mapped
+    const mappedDtoFields = columnMappings
+      .filter(m => !m.isMetadata && m.isValid)
+      .map(m => m.mappedName);
     
     const missingFields = requiredApiFields.filter(field => 
-      !dtoMappedFields.some(mapped => mapped.includes(field.toLowerCase()))
+      !mappedDtoFields.includes(field)
     );
 
     if (missingFields.length > 0) {
       toast.error(`Missing required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    // Check for duplicate mappings (extra safety check)
+    const dtoFieldCounts = new Map<string, number>();
+    mappedDtoFields.forEach(field => {
+      dtoFieldCounts.set(field, (dtoFieldCounts.get(field) || 0) + 1);
+    });
+
+    const duplicatedFields = Array.from(dtoFieldCounts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([field]) => field);
+
+    if (duplicatedFields.length > 0) {
+      toast.error(`Duplicate mappings found for: ${duplicatedFields.join(', ')}`);
       return;
     }
 
